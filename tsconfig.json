@@ -1,0 +1,22 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.web.json",
+  "include": ["*.d.ts", "src/**/*", "src/**/*.vue"],
+  "compilerOptions": {
+    "types": [
+      "vite-plugin-vue-layouts/client",
+      "vite-plugin-pages/client",
+      "@vue-macros/reactivity-transform/macros-global",
+      "naive-ui/volar"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ]
+}
