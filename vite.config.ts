@@ -1,7 +1,7 @@
 import { URL, fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import Vue from '@vitejs/plugin-vue'
 
 import Pages from 'vite-plugin-pages'
 import Layouts from 'vite-plugin-vue-layouts'
@@ -10,7 +10,7 @@ import Components from 'unplugin-vue-components/vite'
 
 import AutoImport from 'unplugin-auto-import/vite'
 
-import ReactivityTransform from '@vue-macros/reactivity-transform/vite'
+import VueMacros from 'unplugin-vue-macros'
 
 import UnoCSS from 'unocss/vite'
 
@@ -20,7 +20,7 @@ import presetIcons from 'unocss/preset-icons'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    vue(),
+    Vue(),
     Pages(),
     Layouts(),
     Components({ dirs: ['src/{pages,components}/**'], extensions: ['vue'], dts: true }),
@@ -33,9 +33,6 @@ export default defineConfig({
         '@vueuse/core',
         'vue/macros',
         {
-          'naive-ui': ['useDialog', 'useMessage', 'useNotification', 'useLoadingBar']
-        },
-        {
           from: 'naive-ui',
           imports: [
             {
@@ -43,6 +40,11 @@ export default defineConfig({
               type: true
             }
           ]
+        },
+        {
+          '@vueuse/integrations/useAxios': ['useAxios'],
+          'naive-ui': ['useDialog', 'useMessage', 'useNotification', 'useLoadingBar'],
+          axios: [['default', 'axios'], 'AxiosError']
         }
       ],
       dirs: ['src/composables/**'],
@@ -51,12 +53,13 @@ export default defineConfig({
         enabled: true
       }
     }),
-    ReactivityTransform(),
+    // ReactivityTransform(),
+    VueMacros.vite(),
     UnoCSS({
       presets: [
         defaultUnoCssPreset(),
         presetIcons({
-          cdn: 'https://esm.sh/',
+          cdn: 'https://esm.sh/'
         })
       ],
       theme: {

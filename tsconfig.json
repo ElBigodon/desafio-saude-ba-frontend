@@ -3,15 +3,27 @@
   "include": ["*.d.ts", "src/**/*", "src/**/*.vue"],
   "compilerOptions": {
     "types": [
+      "unplugin-vue-macros/macros-global",
       "vite-plugin-vue-layouts/client",
       "vite-plugin-pages/client",
-      "@vue-macros/reactivity-transform/macros-global",
-      "naive-ui/volar"
+      "naive-ui/volar",
+      "axios"
     ],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
+  },
+  "vueCompilerOptions": {
+    "plugins": [
+      "@vue-macros/volar/define-options",
+      "@vue-macros/volar/define-model",
+      "@vue-macros/volar/define-props",
+      "@vue-macros/volar/define-props-refs",
+      "@vue-macros/volar/short-vmodel",
+      "@vue-macros/volar/define-slots",
+      "@vue-macros/volar/export-props"
+    ]
   },
 
   "references": [

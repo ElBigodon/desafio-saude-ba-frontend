@@ -5,212 +5,353 @@
     </n-alert>
   </div>
 
-  <div v-else class="mx-6">
+  <div v-else class="mx-4">
     <n-space justify="space-between" vertical>
+      <!-- ANCHOR - Card de filtragem de usuários -->
       <n-card>
-        <n-form ref="formRef" :model="formData">
+        <n-space justify="space-around" align="center">
+          <n-card>
+            <n-form ref="searchFormRef" :model="searchFormData">
+              <n-space justify="space-between" align="center">
+                <n-space justify="start" align="center">
+                  <n-form-item path="name" label="Nome">
+                    <n-input
+                      :allow-input="allowNameInput"
+                      placeholder="João"
+                      v-model:value="searchFormData.name"
+                      clearable
+                    />
+                  </n-form-item>
 
-          <n-space justify="space-between" align="center">
+                  <n-form-item path="cpf" label="CPF">
+                    <n-input
+                      :maxlength="11"
+                      placeholder="401.731.575-56"
+                      v-model:value="searchFormData.cpf"
+                      :allow-input="allowCpfInput"
+                      clearable
+                    />
+                  </n-form-item>
 
-            <n-space justify="start" align="center">
+                  <n-form-item path="registeredAt" label="Data de cadastro">
+                    <n-date-picker
+                      clearable
+                      :is-date-disabled="disabledFutureDate"
+                      v-model:value="searchFormData.created_at"
+                      type="daterange"
+                      start-placeholder="De"
+                      end-placeholder="Até"
+                    />
+                  </n-form-item>
+                </n-space>
+              </n-space>
+            </n-form>
+          </n-card>
 
-              <n-form-item path="name" label="Nome">
-                <n-input v-model:value="formData.name" />
-              </n-form-item>
-              <n-form-item path="cpf" label="CPF">
-                <n-input v-model:value="formData.cpf" />
-              </n-form-item>
-              <n-form-item path="registeredAt" label="Data de cadastro">
-                <n-date-picker clearable :is-date-disabled="disabledFutureDate" v-model:value="formData.registeredAt" type="daterange" />
-              </n-form-item>
-
-            </n-space>
-
-            <n-button> Confirmar </n-button>
-          </n-space>
-        </n-form>
+          <!-- ANCHOR - Card de adição de usuários -->
+          <n-card>
+            <n-tooltip>
+              <template #trigger>
+                <n-button @click="toggleShowAddModal()" type="primary">
+                  <template #icon>
+                    <i class="i-material-symbols:add" />
+                  </template>
+                </n-button>
+              </template>
+              Adicionar um novo usuário
+            </n-tooltip>
+          </n-card>
+        </n-space>
       </n-card>
-      <n-data-table
-        striped
-        :columns="columns"
-        :data="data"
-        virtual-scroll
-        :max-height="!isMobile ? '500px' : '200px'"
+
+      <!-- ANCHOR - Tabela de dados -->
+      <users-table
+        @update:request="execute()"
+        @update:page="handleSearchPage"
+        :data="filteredData"
+        :isMobile="isMobile"
+        :isLoading="isLoading"
       />
     </n-space>
   </div>
+
+  <!-- ANCHOR - Modal de adição de usuário -->
+  <n-modal
+    class="!w-[550px] !h-[575px]"
+    :loading="isLoadingAddForm"
+    v-model:show="showAddModal"
+    preset="confirm"
+    positive-text="Adicionar"
+    @positive-click="handleSubmitAddForm"
+    negative-text="Cancelar"
+    :show-icon="false"
+    :closable="false"
+  >
+    <n-scrollbar class="max-h-[485px]">
+      <n-card title="Adicionar usuário">
+        <n-form ref="addFormRef" :rules="addFormRule" :model="addFormData">
+          <n-form-item required label="Nome" path="name">
+            <n-input placeholder="Nome" v-model:value="addFormData.name" />
+          </n-form-item>
+          <n-form-item required label="E-mail" path="email">
+            <n-input placeholder="E-mail" v-model:value="addFormData.email" />
+          </n-form-item>
+          <n-form-item required label="CPF" path="cpf">
+            <n-input placeholder="CPF" v-model:value="addFormData.cpf" />
+          </n-form-item>
+          <n-form-item label="Perfil" path="profile">
+            <n-select :options="addProfileOptionsData" v-model:value="addFormData.profile" />
+          </n-form-item>
+          <n-form-item required :label="`Endereços (${addFormAddressesSize}/5)`" path="addresses">
+            <n-dynamic-input
+              :min="1"
+              :max="5"
+              key-placeholder="Logradouro"
+              value-placeholder="CEP"
+              preset="pair"
+              v-model:value="addFormData.addresses"
+            />
+          </n-form-item>
+        </n-form>
+      </n-card>
+    </n-scrollbar>
+  </n-modal>
+
 </template>
 
 <script setup lang="ts">
-import { NButton, NTooltip, type FormInst } from 'naive-ui'
+import { NButton, NTooltip, type FormInst, type FormRules } from 'naive-ui'
 
-const emitter = defineEmits(['update:show'])
-
-const message = useMessage()
-
-onMounted(() => emitter('update:show'))
+// ANCHOR - Variaveis
 
 const { isMobile, inLandscape } = useDevice()
 
-const formRef = ref<FormInst | null>(null)
+const searchFormRef = ref<FormInst | null>(null)
 
-const formData = reactive({
+const searchFormData = reactive({
   name: '',
   cpf: '',
-  registeredAt: null as [number, number] | null
+  created_at: null as [number, number] | null
+})
+const message = useMessage()
+
+// SECTION - Variaveis do formulário de adição de dados
+
+const addFormRef = ref<FormInst | null>(null)
+
+const [isLoadingAddForm, toggleIsLoadingAddForm] = useToggle()
+
+const [showAddModal, toggleShowAddModal] = useToggle()
+
+let addFormData = reactive({
+  name: '',
+  email: '',
+  cpf: '',
+  profile: 'user',
+  addresses: [{ key: '', value: '' }] as { key: string; value: string }[]
 })
 
-const disabledFutureDate = (ts: number) => ts > Date.now()
-
-watch(formData, () => console.log(formData.registeredAt))
-
-const columns: DataTableColumns = [
-  {
-    title: 'ID',
-    key: 'id',
-    ellipsis: {
-      tooltip: true
-    }
+const addFormRule: FormRules = {
+  name: {
+    required: true,
+    message: 'Nome obrigatório'
   },
-  {
-    title: 'Nome',
-    key: 'name',
-    ellipsis: {
-      tooltip: true
-    }
-  },
-  {
-    title: 'E-mail',
-    key: 'email',
-    ellipsis: {
-      tooltip: true
-    }
-  },
-  {
-    title: 'CPF',
-    key: 'cpf',
-    ellipsis: {
-      tooltip: true
-    },
-    render({ cpf }: { cpf: string }) {
-      let pattern = '###.###.###-##'
+  cpf: {
+    required: true,
+    transform: (v) => v.replace(/[\s\W]+/g, ''),
+    validator(ctx, v) {
+      if (!v) {
+        ctx.message = 'CPF obrigatório'
 
-      for (let i = 0; i < cpf.length; i++) {
-        pattern = pattern.replace('#', cpf[i])
+        return false
       }
 
-      return pattern
+      if (!Number(v)) {
+        ctx.message = 'CPF deve ser um número'
+
+        return false
+      }
+
+      if (v.length !== 11) {
+        ctx.message = 'CPF inválido'
+
+        return false
+      }
+
+      return true
     }
   },
-  {
-    title: 'Data de cadastro',
-    key: 'registeredAt',
-    render({ registeredAt }) {
-      return new Date(registeredAt as string).toLocaleString('pt-BR')
+  email: {
+    required: true,
+    message: 'Email obrigatório',
+    transform: (v) => v.replace(/\s/g, ''),
+    validator(ctx, v) {
+      if (!v.replace(/\s/g, '')) {
+        ctx.message = 'Email obrigatório'
+
+        return false
+      }
+
+      // Regex de email (Desenvolvido pelo Github Copilot)
+      const emailRegex =
+        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+
+      const emailIsValid = emailRegex.test(v)
+
+      if (!emailIsValid) {
+        ctx.message = 'Email inválido'
+
+        return false
+      }
+
+      return true
     }
   },
-  {
-    title: 'Perfil',
-    key: 'profile',
-    width: 80,
-    ellipsis: {
-      tooltip: true
-    }
-  },
-  {
-    title: 'Ações',
-    key: 'actions',
-    render() {
-      return [
-        h(
-          NTooltip,
-          {
-            'keep-alive-on-hover': false
-          },
-          {
-            default: () => 'Visualizar usuário',
-            trigger: () =>
-              h(
-                NButton,
-                {
-                  class: isMobile ? 'mb-2 mr-2' : 'mr-2',
-                  type: 'primary',
-                  onClick: () => message.info('Você clicou no botão')
-                },
-                {
-                  icon: () => h('i', { class: 'i-ic:baseline-remove-red-eye' })
-                }
-              )
-          }
-        ),
-        h(
-          NTooltip,
-          {
-            'keep-alive-on-hover': false
-          },
-          {
-            default: () => 'Editar usuário',
-            trigger: () =>
-              h(
-                NButton,
-                { class: isMobile ? 'mb-2 mr-2' : 'mr-2', type: 'info' },
-                {
-                  icon: () => h('i', { class: 'i-mdi:lead-pencil' })
-                }
-              )
-          }
-        ),
-        h(
-          NTooltip,
-          {
-            'keep-alive-on-hover': false
-          },
-          {
-            default: () => 'Remover usuário',
-            trigger: () =>
-              h(
-                NButton,
-                { type: 'error' },
-                {
-                  icon: () => h('i', { class: 'i-ic:baseline-delete' })
-                }
-              )
-          }
-        )
-      ]
+  addresses: {
+    required: true,
+    transform: (v) =>
+      v.map(({ key, value }: any) => ({
+        key,
+        value: value.replace(/\W+/g, '')
+      })),
+    validator(ctx, v) {
+      for (const { key, value } of v) {
+        if (!key || !value) {
+          ctx.message = 'Defina ao menos um endereço'
+
+          return false
+        }
+
+        if (!Number(value)) {
+          ctx.message = 'CEP deve ser um número'
+
+          return false
+        }
+
+        if (value.length !== 8) {
+          ctx.message = 'CEP inválido'
+
+          return false
+        }
+      }
+
+      return true
     }
   }
-]
+}
 
-const data = $ref(
-  Array.from({ length: 1000 }, (_, i) => {
-    const genRandomString = () => Math.random().toString(36).substring(2)
+const immutableAddFormData = Object.assign({}, addFormData)
 
-    const randomYear = Math.floor(Math.random() * (2020 - 1990 + 1)) + 1990
-    const randomMonth = Math.floor(Math.random() * (12 - 1 + 1)) + 1
-    const randomDay = Math.floor(Math.random() * (31 - 1 + 1)) + 1
+const addFormAddressesSize = $computed(() => addFormData.addresses.length)
 
-    const randomHour = Math.floor(Math.random() * (24 - 1 + 1)) + 1
-    const randomMinute = Math.floor(Math.random() * (59 - 1 + 1)) + 1
-    const randomSecond = Math.floor(Math.random() * (59 - 1 + 1)) + 1
+const addProfileOptionsData = $ref([
+  { label: 'Usuário', value: 'user' },
+  { label: 'Administrador', value: 'admin' }
+])
 
-    const randomCPF = Math.floor(Math.random() * (10000000000 - 99999999999 + 1)) + 99999999999
+const allowCpfInput = (v: string) => Number(v) === 0 || !!Number(v) || !v
 
-    return {
-      id: i,
-      registeredAt: new Date(
-        randomYear,
-        randomMonth,
-        randomDay,
-        randomHour,
-        randomMinute,
-        randomSecond
-      ).toISOString(),
-      cpf: String(randomCPF),
-      name: `${genRandomString()} ${genRandomString()}`,
-      email: `${genRandomString()}@${genRandomString()}.${genRandomString().slice(0, 3)}`,
-      profile: Math.round(Math.random()) ? 'admin' : 'user'
+const allowNameInput = (v: string) => !Number(v) || !v
+
+// !SECTION
+
+// ANCHOR - Métodos
+
+let { data, error, isLoading, execute } = useAxios<any[]>('/', {
+  baseURL: 'http://localhost:8000/api/users',
+  params: {
+    page: 1,
+    perPage: 8
+  },
+  transformResponse(data) {
+    const parseData: any[] = JSON.parse(data)
+
+    return parseData.map(
+      ({
+        updated_at,
+        uuid,
+        profile_uuid,
+        profile_name,
+        ...rest
+      }: UserData & { profile_name: string }) => ({
+        id: uuid,
+        profile: profile_name,
+        ...rest
+      })
+    )
+  }
+})
+
+const filteredData = $computed(() =>
+  data.value?.filter(
+    ({ name, cpf, created_at }) =>
+      name.toLowerCase().startsWith(searchFormData.name.toLowerCase()) &&
+      cpf.startsWith(searchFormData.cpf) &&
+      (searchFormData.created_at
+        ? new Date(created_at) >= new Date(searchFormData.created_at[0]) &&
+          new Date(created_at) <= new Date(searchFormData.created_at[1])
+        : true)
+  )
+)
+
+watch(error, () => {
+  console.error(error.value)
+  message.error(error.value!.message)
+})
+
+async function handleSubmitAddForm() {
+  await addFormRef.value?.validate(async (errs) => {
+    if (errs) {
+      return message.error('Preencha todos os campos')
+    } else {
+      try {
+        toggleIsLoadingAddForm()
+
+        const { status, data } = await $axios.post('/users/create', {
+          ...addFormData,
+          addresses: addFormData.addresses.map(({ key, value }) => ({ address: key, cep: value }))
+        })
+
+        if (status === 400) {
+          throw new Error(data.message)
+        }
+
+        if (status === 500) {
+          throw new Error('Erro interno do servidor')
+        }
+
+        message.success('Usuário adicionado com sucesso')
+
+        addFormData = immutableAddFormData
+      } catch (err) {
+        console.error(err)
+
+        if (err instanceof AxiosError) {
+          console.log(err.response?.data.message)
+
+          return message.error(err.response?.data.message || 'Erro interno do servidor')
+        }
+
+        if (err instanceof Error) {
+          console.log(err.message)
+
+          return message.error(err.message)
+        }
+      } finally {
+        toggleIsLoadingAddForm()
+      }
     }
   })
-)
+}
+
+async function handleSearchPage(page: number) {
+  await execute({
+    params: {
+      page,
+      perPage: 8
+    }
+  })
+}
+
+const disabledFutureDate = (ts: number) => ts > Date.now()
 </script>
